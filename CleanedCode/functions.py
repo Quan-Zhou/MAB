@@ -90,102 +90,102 @@ class CombinatorialUCB:
         return chosen
 
 # class GPfunctions:
-    def __init__(self, K, length_scale=None, IfStationary=True):
-        self.K=K
-        self.num_points= 500 #number of actions
-        actionspace =  np.linspace(-5,5,self.num_points) #.reshape(-1, 1) # grid points
-        self.actionspace = np.sort(actionspace,axis=0)
-        self.length_scale=length_scale
-        # Compute covariance matrix
-        if IfStationary == True:
-            self.kernel = self.rbf_kernel()
-        else:
-            self.kernel = self.gibbs_kernel()
+#     def __init__(self, K, length_scale=None, IfStationary=True):
+#         self.K=K
+#         self.num_points= 500 #number of actions
+#         actionspace =  np.linspace(-5,5,self.num_points) #.reshape(-1, 1) # grid points
+#         self.actionspace = np.sort(actionspace,axis=0)
+#         self.length_scale=length_scale
+#         # Compute covariance matrix
+#         if IfStationary == True:
+#             self.kernel = self.rbf_kernel()
+#         else:
+#             self.kernel = self.gibbs_kernel()
    
-        self.subset = self.algorithm()
+#         self.subset = self.algorithm()
 
-    # Stationary Gaussian Kernel
-    def rbf_kernel(self):
-        """Computes the RBF kernel matrix."""
-        actionset=self.actionspace.reshape((-1,1))
-        sq_dist = cdist(actionset,actionset, 'sqeuclidean')
-        return np.exp(-sq_dist / (2 * self.length_scale ** 2))
+#     # Stationary Gaussian Kernel
+#     def rbf_kernel(self):
+#         """Computes the RBF kernel matrix."""
+#         actionset=self.actionspace.reshape((-1,1))
+#         sq_dist = cdist(actionset,actionset, 'sqeuclidean')
+#         return np.exp(-sq_dist / (2 * self.length_scale ** 2))
     
-    # Non-stationary Gibbs Kernel
-    def gibbs_kernel(self):
-        """Computes the Gibbs kernel matrix."""
-        K = np.zeros((self.num_points,self.num_points))
-        # Compute the kernel matrix
-        for i in range(self.num_points):
-            for j in range(self.num_points):
-                K[i,j] = self.gibbs_kernel_fun(self.actionspace[i],self.actionspace[j])
-        return K
+#     # Non-stationary Gibbs Kernel
+#     def gibbs_kernel(self):
+#         """Computes the Gibbs kernel matrix."""
+#         K = np.zeros((self.num_points,self.num_points))
+#         # Compute the kernel matrix
+#         for i in range(self.num_points):
+#             for j in range(self.num_points):
+#                 K[i,j] = self.gibbs_kernel_fun(self.actionspace[i],self.actionspace[j])
+#         return K
 
-    # Define an input-dependent length scale function l(x)
-    def length_scale_fun(self, x):
-        return 0.5 + 0.5* np.exp(-(x/self.length_scale)**2)  # Short length scale near 0, longer away
+#     # Define an input-dependent length scale function l(x)
+#     def length_scale_fun(self, x):
+#         return 0.5 + 0.5* np.exp(-(x/self.length_scale)**2)  # Short length scale near 0, longer away
 
-    # Define the 1D Gibbs kernel function
-    def gibbs_kernel_fun(self, x, x_prime):
-        l_x = self.length_scale_fun(x)
-        l_xp = self.length_scale_fun(x_prime)
-        numerator = 2 * l_x * l_xp
-        denominator = l_x**2 + l_xp**2
-        prefactor = np.sqrt(numerator / denominator)
-        exponent = - (x - x_prime)**2 / denominator
-        return prefactor * np.exp(exponent)
+#     # Define the 1D Gibbs kernel function
+#     def gibbs_kernel_fun(self, x, x_prime):
+#         l_x = self.length_scale_fun(x)
+#         l_xp = self.length_scale_fun(x_prime)
+#         numerator = 2 * l_x * l_xp
+#         denominator = l_x**2 + l_xp**2
+#         prefactor = np.sqrt(numerator / denominator)
+#         exponent = - (x - x_prime)**2 / denominator
+#         return prefactor * np.exp(exponent)
 
-    def samples(self,size):
-        # Sample multiple functions from the GP
-        return np.random.multivariate_normal(mean=np.zeros(self.num_points), cov=self.kernel,size=size)
+#     def samples(self,size):
+#         # Sample multiple functions from the GP
+#         return np.random.multivariate_normal(mean=np.zeros(self.num_points), cov=self.kernel,size=size)
     
-    def algorithm(self):
-        # Sample multiple functions from the GP
-        f_samples = self.samples(size=self.K)
-        # Find the max index for each batch
-        max_indices = np.argmax(f_samples, axis=1)  # Shape: (num_batches,)
-        # Get unique max indices
-        subset = np.unique(max_indices)
+#     def algorithm(self):
+#         # Sample multiple functions from the GP
+#         f_samples = self.samples(size=self.K)
+#         # Find the max index for each batch
+#         max_indices = np.argmax(f_samples, axis=1)  # Shape: (num_batches,)
+#         # Get unique max indices
+#         subset = np.unique(max_indices)
 
-        while len(subset) < self.K: # add more items until K distinct actions are found
-            f_samples = self.samples(size=self.K-len(subset))
-            max_indices = np.argmax(f_samples, axis=1)
-            subset = np.unique(np.append(subset,max_indices))
+#         while len(subset) < self.K: # add more items until K distinct actions are found
+#             f_samples = self.samples(size=self.K-len(subset))
+#             max_indices = np.argmax(f_samples, axis=1)
+#             subset = np.unique(np.append(subset,max_indices))
   
-        return subset
+#         return subset
     
-    def test(self,subset):
-        num_batches = 10**5  # Number of function samples for testing
-        # Sample multiple functions from the GP
-        f_samples = self.samples(size=num_batches) # np.random.multivariate_normal(mean=np.zeros(self.num_points), cov=self.kernel, size=num_batches)
-        return np.average(np.max(f_samples, axis=1)-np.max(f_samples[:,subset], axis=1))
+#     def test(self,subset):
+#         num_batches = 10**5  # Number of function samples for testing
+#         # Sample multiple functions from the GP
+#         f_samples = self.samples(size=num_batches) # np.random.multivariate_normal(mean=np.zeros(self.num_points), cov=self.kernel, size=num_batches)
+#         return np.average(np.max(f_samples, axis=1)-np.max(f_samples[:,subset], axis=1))
 
-    def ucb_action_selection(self, N):
-        """
-        Selects a subset of K actions using Upper Confidence Bound (UCB).
-        Returns: List of selected action indices.
-        """
-        # Sample multiple functions from the GP
-        f_samples = self.samples(size=N) 
-        ucb = CombinatorialUCB(self.num_points, self.K, noise_var=1.0)
+#     def ucb_action_selection(self, N):
+#         """
+#         Selects a subset of K actions using Upper Confidence Bound (UCB).
+#         Returns: List of selected action indices.
+#         """
+#         # Sample multiple functions from the GP
+#         f_samples = self.samples(size=N) 
+#         ucb = CombinatorialUCB(self.num_points, self.K, noise_var=1.0)
 
-        for t in range(N):
-            selected_actions = ucb.step(f_samples[t,:])
-        return selected_actions
+#         for t in range(N):
+#             selected_actions = ucb.step(f_samples[t,:])
+#         return selected_actions
     
-    def ts_action_selection(self, N):
-        """
-        Selects a subset of K actions using Thompson Sampling.
-        Returns: List of selected action indices.
-        """
-        # Sample multiple functions from the GP
-        f_samples = self.samples(size=N) 
+#     def ts_action_selection(self, N):
+#         """
+#         Selects a subset of K actions using Thompson Sampling.
+#         Returns: List of selected action indices.
+#         """
+#         # Sample multiple functions from the GP
+#         f_samples = self.samples(size=N) 
         
-        cts = GaussianCTS(self.num_points, self.K, prior_var=1.0, noise_var=1.0)
+#         cts = GaussianCTS(self.num_points, self.K, prior_var=1.0, noise_var=1.0)
 
-        for t in range(N):
-            selected_actions = cts.step(f_samples[t,:])
-        return selected_actions  
+#         for t in range(N):
+#             selected_actions = cts.step(f_samples[t,:])
+#         return selected_actions  
     
 class GPfunctions_noise:
     def __init__(self, K, length_scale=None, IfStationary=True):
@@ -229,11 +229,22 @@ class GPfunctions_noise:
     #     return subset
 
     def argmax(self, f_samples, N):
-        cts = GaussianCTS(self.num_points, budget=1, prior_var=1.0, noise_var=self.noise_var)
-        for t in range(N-1):  # only update internal state
-            _ = cts.step(f_samples[0,:])
-        selected_actions = cts.step(f_samples[0,:])  # final result
-        return selected_actions
+        # cts = GaussianCTS(self.num_points, budget=1, prior_var=1.0, noise_var=self.noise_var)
+        # for t in range(N-1):  # only update internal state
+        #     _ = cts.step(f_samples[0,:])
+        # selected_actions = cts.step(f_samples[0,:])  # final result
+        # return selected_actions
+    
+        bandit = GaussianTS(self.num_points, known_variance=1)
+        rewards = []
+        for _ in range(N):
+            arm = bandit.select_arm()
+            # print(selected_actions)
+            reward = f_samples[0,arm] 
+            bandit.update(arm, reward)
+            rewards.append(reward)
+        # print("Estimated means:", bandit.prior_mean)
+        return bandit.select_arm()
 
     def algorithm(self):
         subset = set()
@@ -243,7 +254,8 @@ class GPfunctions_noise:
             for f in f_samples:
                 max_indices = self.argmax(f[np.newaxis, :], N=300)
                 samplesize+=300
-                subset.update(max_indices)
+                # subset.update(max_indices)
+                subset.add(max_indices)
         self.epsilon_samplesize = samplesize
         return np.array(list(subset))
     
@@ -260,7 +272,7 @@ class GPfunctions_noise:
         """
         # Sample multiple functions from the GP
         f_samples = self.samples(size=N) 
-        ucb = CombinatorialUCB(self.num_points, self.K, noise_var=self.noise_var)
+        ucb = CombinatorialUCB(self.num_points, self.K)
 
         for t in range(N):
             selected_actions = ucb.step(f_samples[t,:])
