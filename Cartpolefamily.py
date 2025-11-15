@@ -26,12 +26,12 @@ class ContinuousCartPoleEnv(CartPoleEnv):
 
     def step(self, action):
         # Allow both discrete (0/1) and continuous actions
-        if np.isscalar(action):  
-            # Discrete action → convert to continuous force
-            force = self.force_mag if action == 1 else -self.force_mag
-        else:
-            # Continuous action
-            force = float(np.clip(action[0], -self.force_mag, self.force_mag))
+        # if np.isscalar(action):  
+        #     # Discrete action → convert to continuous force
+        #     force = self.force_mag if action == 1 else -self.force_mag
+        # else:
+        # Continuous action
+        force = float(np.clip(action, -self.force_mag, self.force_mag))
 
         self.last_u = force
 
@@ -51,7 +51,8 @@ class ContinuousCartPoleEnv(CartPoleEnv):
         theta = theta + self.tau * theta_dot
         theta_dot = theta_dot + self.tau * thetaacc
 
-        self.state = (x, x_dot, theta, theta_dot)
+        # self.state = (x, x_dot, theta, theta_dot)
+        self.state = np.array([x, x_dot, theta, theta_dot], dtype=np.float32)
 
         terminated = (
             x < -self.x_threshold
@@ -61,15 +62,34 @@ class ContinuousCartPoleEnv(CartPoleEnv):
         )
         reward = 1.0
         return np.array(self.state), reward, terminated, False, {}
+    
+    def reset(self):
+        """
+        Reset the environment and return a proper 4-element state array
+        """
+        result = super().reset()  # This returns (state, info) tuple
+        
+        # Extract just the state array from the tuple
+        if isinstance(result, tuple):
+            state = result[0]  # Get the first element (the state array)
+        else:
+            state = result
+        
+        # Ensure it's a 4-element numpy array
+        if not isinstance(state, np.ndarray) or len(state) != 4:
+            state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        
+        self.state = state
+        return state
 
 class CartPoleCategoryGenerator:
     def __init__(self):
         self.categories = {
-            'easy':     {'gravity': 8.0,  'masspole': 0.08, 'length': 0.4, 'force_mag': 12.0, 'variation': 0.1},
-            'medium':   {'gravity': 9.8,  'masspole': 0.1,  'length': 0.5, 'force_mag': 10.0, 'variation': 0.15},
-            'hard':     {'gravity': 11.0, 'masspole': 0.15, 'length': 0.6, 'force_mag': 8.0,  'variation': 0.1},
-            'very_hard':{'gravity': 12.0, 'masspole': 0.2,  'length': 0.7, 'force_mag': 6.0,  'variation': 0.08},
-            'unstable': {'gravity': 10.5, 'masspole': 0.18, 'length': 0.65,'force_mag': 7.0,  'variation': 0.2},
+            'easy':     {'gravity': 8.0,  'masspole': 0.08, 'length': 0.4, 'variation': 0.1},
+            'medium':   {'gravity': 9.8,  'masspole': 0.1,  'length': 0.5, 'variation': 0.15},
+            'hard':     {'gravity': 11.0, 'masspole': 0.15, 'length': 0.6, 'variation': 0.1},
+            'very_hard':{'gravity': 12.0, 'masspole': 0.2,  'length': 0.7, 'variation': 0.08},
+            'unstable': {'gravity': 10.5, 'masspole': 0.18, 'length': 0.65,'variation': 0.2},
         }
 
     def generate_env(self, category):
