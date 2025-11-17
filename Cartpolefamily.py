@@ -25,17 +25,9 @@ class ContinuousCartPoleEnv(CartPoleEnv):
         self.polemass_length = self.masspole * self.length
 
     def step(self, action):
-        # Allow both discrete (0/1) and continuous actions
-        # if np.isscalar(action):  
-        #     # Discrete action → convert to continuous force
-        #     force = self.force_mag if action == 1 else -self.force_mag
-        # else:
-        # Continuous action
         force = float(np.clip(action, -self.force_mag, self.force_mag))
-
         self.last_u = force
 
-        # Same as original CartPole step except using continuous force
         x, x_dot, theta, theta_dot = self.state
         costheta = np.cos(theta)
         sintheta = np.sin(theta)
@@ -50,8 +42,10 @@ class ContinuousCartPoleEnv(CartPoleEnv):
         x_dot = x_dot + self.tau * xacc
         theta = theta + self.tau * theta_dot
         theta_dot = theta_dot + self.tau * thetaacc
-
-        # self.state = (x, x_dot, theta, theta_dot)
+        
+        # CRITICAL FIX: Angle normalization
+        theta = ((theta + np.pi) % (2 * np.pi)) - np.pi
+        
         self.state = np.array([x, x_dot, theta, theta_dot], dtype=np.float32)
 
         terminated = (
@@ -61,26 +55,34 @@ class ContinuousCartPoleEnv(CartPoleEnv):
             or theta > self.theta_threshold_radians
         )
         reward = 1.0
-        return np.array(self.state), reward, terminated, False, {}
-    
+        return np.array(self.state), reward, terminated, False, {}   
+     
     def reset(self):
-        """
-        Reset the environment and return a proper 4-element state array
-        """
-        result = super().reset()  # This returns (state, info) tuple
+
+        result = super().reset()
+
+        low = np.array([-4.8, -3.0, -0.418, -3.5])
+        high = np.array([4.8, 3.0, 0.418, 3.5])
+
+        return np.array(np.random.uniform(low=low, high=high), dtype=np.float32)
+
+        # """
+        # Reset the environment and return a proper 4-element state array
+        # """
+        # result = super().reset()  # This returns (state, info) tuple
         
-        # Extract just the state array from the tuple
-        if isinstance(result, tuple):
-            state = result[0]  # Get the first element (the state array)
-        else:
-            state = result
+        # # Extract just the state array from the tuple
+        # if isinstance(result, tuple):
+        #     state = result[0]  # Get the first element (the state array)
+        # else:
+        #     state = result
         
-        # Ensure it's a 4-element numpy array
-        if not isinstance(state, np.ndarray) or len(state) != 4:
-            state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        # # Ensure it's a 4-element numpy array
+        # if not isinstance(state, np.ndarray) or len(state) != 4:
+        # state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         
-        self.state = state
-        return state
+        # self.state = state
+        # return state
 
 class CartPoleCategoryGenerator:
     def __init__(self):
