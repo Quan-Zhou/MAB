@@ -61,10 +61,10 @@ class ContinuousCartPoleEnv(CartPoleEnv):
 
         result = super().reset()
 
-        low = np.array([-4.8, -3.0, -0.418, -3.5])
-        high = np.array([4.8, 3.0, 0.418, 3.5])
+        # low = np.array([-4.8, -3.0, -0.418, -3.5])
+        # high = np.array([4.8, 3.0, 0.418, 3.5])
 
-        return np.array(np.random.uniform(low=low, high=high), dtype=np.float32)
+        # return np.array(np.random.uniform(low=low, high=high), dtype=np.float32)
 
         # """
         # Reset the environment and return a proper 4-element state array
@@ -79,17 +79,17 @@ class ContinuousCartPoleEnv(CartPoleEnv):
         
         # # Ensure it's a 4-element numpy array
         # if not isinstance(state, np.ndarray) or len(state) != 4:
-        # state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        state = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         
-        # self.state = state
-        # return state
+        self.state = state
+        return state
 
 class CartPoleCategoryGenerator:
     def __init__(self):
         self.categories = {
             'easy':     {'gravity': 8.0,  'masspole': 0.08, 'length': 0.4, 'variation': 0.1},
             'medium':   {'gravity': 9.8,  'masspole': 0.1,  'length': 0.5, 'variation': 0.15},
-            'hard':     {'gravity': 11.0, 'masspole': 0.15, 'length': 0.6, 'variation': 0.1},
+            'hard':     {'gravity': 11.0, 'masspole': 0.15, 'length': 0.6, 'variation': 0.05},
             'very_hard':{'gravity': 12.0, 'masspole': 0.2,  'length': 0.7, 'variation': 0.08},
             'unstable': {'gravity': 10.5, 'masspole': 0.18, 'length': 0.65,'variation': 0.2},
         }

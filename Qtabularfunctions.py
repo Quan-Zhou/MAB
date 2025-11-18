@@ -18,7 +18,7 @@ class Discretizer:
             if i == 0:  # First dimension - always map to bin 0
                 new_bin = 0
             else:
-                # Map to 5 optimized bins for other dimensions
+            # Map to 5 optimized bins for other dimensions
                 if original_bin <= 42:
                     new_bin = 0  # Big group: 0-45
                 elif original_bin <= 48:
