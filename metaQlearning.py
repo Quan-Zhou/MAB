@@ -2,10 +2,12 @@ import time
 import random
 from typing import Dict, List, Tuple, Any
 import numpy as np
+from Qtabularfunctions import*
+import pickle
 
-class QLearningExperimentRunner:
+class MetaQLearningRunner:
     def __init__(self, gen, low: float, high: float, num_actions: int, 
-                 actionset_dict: Dict, lr: float = 0.1, gamma: float = 0.99, 
+                 actionset_dict: Dict, actionspace_dict: Dict, lr: float = 0.1, gamma: float = 0.99, 
                  epsilon: float = 1.0, force_mag: float = 10.0,
                  min_td_error: float = 0.001, consecutive_small_errors: int = 10):
         """
@@ -27,8 +29,9 @@ class QLearningExperimentRunner:
         self.gen = gen
         self.low = low
         self.high = high
-        self.num_actions = num_actions
+        self.num_actions = num_actions # the number of action in actionspace. 
         self.actionset_dict = actionset_dict
+        self.actionspace_dict = actionspace_dict
         self.lr = lr
         self.gamma = gamma
         self.epsilon = epsilon
@@ -40,13 +43,15 @@ class QLearningExperimentRunner:
         self.run_results = []
     
     def run_single_experiment(self, episodes: int, category: str = None, 
-                            verbose: bool = False) -> Dict[str, Any]:
+                         use_actionset_as_actionspace: bool = False,
+                         verbose: bool = False) -> Dict[str, Any]:
         """
         Run a single Q-learning experiment.
         
         Args:
             episodes: Number of episodes to run
             category: Specific category to use, if None chooses randomly from first 3
+            use_actionset_as_actionspace: If True, use actionset_dict as action space instead of actionspace_dict
             verbose: Whether to print progress information
             
         Returns:
@@ -60,13 +65,23 @@ class QLearningExperimentRunner:
         
         if verbose:
             print(f"Starting experiment with category: {category}")
+            if use_actionset_as_actionspace:
+                print("Using actionset_dict as action space (evaluation mode)")
+            else:
+                print("Using actionspace_dict as action space (training mode)")
         
-        # Generate environment and agent
+        # Choose which action space to use
+        if use_actionset_as_actionspace:
+            action_space = self.actionset_dict
+        else:
+            action_space = self.actionspace_dict
+        
+        # Generate environment and agent - num_actions stays fixed
         env = self.gen.generate_env(category)
         agent = TabularQLearningAgent(
             statespace=[self.low, self.high],
-            num_actions=self.num_actions,
-            actionspace=self.actionset_dict, 
+            num_actions=self.num_actions,  # Always use the fixed num_actions
+            actionspace=action_space, 
             lr=self.lr,
             gamma=self.gamma,
             epsilon=self.epsilon,
@@ -127,14 +142,14 @@ class QLearningExperimentRunner:
                 agent.decrease_epsilon()
         
         env.close()
-        
-        # Update actionset_dict with learned policies
-        initial_action_count = len(self.actionset_dict)
-        for state_tuple in agent.disc.get_all_discrete_states():
-            self.actionset_dict[state_tuple].append(np.argmax(agent.Q[state_tuple]))
-        
+
         end_time = time.time()
         runtime = end_time - start_time
+        
+        # Only update actionset_dict if we're in training mode (using actionspace_dict)
+        if not use_actionset_as_actionspace:
+            for state_tuple in agent.disc.get_all_discrete_states():
+                self.actionset_dict[state_tuple].append(np.argmax(agent.Q[state_tuple]))
         
         # Compile results
         result = {
@@ -146,30 +161,23 @@ class QLearningExperimentRunner:
             'std_reward': np.std(episode_rewards),
             'mean_steps': np.mean(episode_steps),
             'final_epsilon': agent.epsilon,
-            'actions_added': len(self.actionset_dict) - initial_action_count,
-            'agent': agent
+            'mode': 'evaluation' if use_actionset_as_actionspace else 'training'
         }
         
         if verbose:
             print(f"Experiment completed in {runtime:.2f} seconds")
             print(f"Mean reward: {result['mean_reward']:.2f} ± {result['std_reward']:.2f}")
             print(f"Early stops: {early_stops}/{episodes}")
+            print(f"Mode: {result['mode']}")
         
         return result
-    
+        
     def run_multiple_experiments(self, num_runs: int, episodes_per_run: int, 
-                               categories: List[str] = None, verbose: bool = True) -> List[Dict]:
+                            categories: List[str] = None, 
+                            use_actionset_as_actionspace: bool = False,  
+                            verbose: bool = True) -> List[Dict]:
         """
         Run multiple Q-learning experiments.
-        
-        Args:
-            num_runs: Number of experiments to run
-            episodes_per_run: Number of episodes per experiment
-            categories: List of categories to use (cycles through if provided)
-            verbose: Whether to print progress information
-            
-        Returns:
-            List of results from each run
         """
         self.run_results = []
         
@@ -186,6 +194,7 @@ class QLearningExperimentRunner:
             result = self.run_single_experiment(
                 episodes=episodes_per_run,
                 category=category,
+                use_actionset_as_actionspace=use_actionset_as_actionspace,  # Already passed through
                 verbose=verbose
             )
             
@@ -221,34 +230,249 @@ class QLearningExperimentRunner:
                   f"{result['runtime_seconds']:.2f}s, "
                   f"reward: {result['mean_reward']:.2f} ± {result['std_reward']:.2f}")
 
-# Usage example:
-if __name__ == "__main__":
-    # Initialize with your parameters
-    runner = QLearningExperimentRunner(
-        gen=gen,  # your environment generator
-        low=low,
-        high=high, 
-        num_actions=num_actions,
-        actionset_dict=actionset_dict,
-        lr=lr,
-        gamma=gamma,
-        epsilon=epsilon,
-        force_mag=force_mag
-    )
-    
-    # Run multiple experiments
-    results = runner.run_multiple_experiments(
-        num_runs=5,
-        episodes_per_run=1000,
-        verbose=True
-    )
-    
-    # Print summary
-    runner.print_summary()
-    
-    # Access individual results
-    for i, result in enumerate(results):
-        print(f"\nRun {i+1}:")
-        print(f"  Category: {result['category']}")
-        print(f"  Runtime: {result['runtime_seconds']:.2f}s")
-        print(f"  Mean reward: {result['mean_reward']:.2f}")
+    def remove_action_repetitions(self) -> Dict:
+        """
+        Remove duplicate actions from actionset_dict for each state.
+        
+        Returns:
+            Updated actionset_dict with unique actions per state
+        """
+        for state_tuple, actions in self.actionset_dict.items():
+            self.actionset_dict[state_tuple] = list(set(actions))
+        return self.actionset_dict
+
+    def save_actionset_dict(self, filepath: str):
+        """
+        Save actionset_dict to file using pickle.
+        
+        Args:
+            filepath: Path to save the file
+        """
+        with open(filepath, 'wb') as f:
+            pickle.dump(self.actionset_dict, f)
+        print(f"actionset_dict saved to {filepath}")
+
+    def load_actionset_dict(self, filepath: str) -> Dict:
+        """
+        Load actionset_dict from file using pickle.
+        
+        Args:
+            filepath: Path to load the file from
+            
+        Returns:
+            Loaded actionset_dict
+        """
+        with open(filepath, 'rb') as f:
+            self.actionset_dict = pickle.load(f)
+        print(f"actionset_dict loaded from {filepath}")
+        return self.actionset_dict
+
+    def evaluate_policy(self, episodes: int = 1000, category: str = None,
+                    use_actionset_as_actionspace: bool = False,
+                    max_steps_per_episode: int = 1000,
+                    verbose: bool = False) -> Dict[str, Any]:
+        """
+        Evaluate a policy without training or early stopping.
+        
+        Args:
+            episodes: Number of evaluation episodes
+            category: Specific category to use, if None chooses randomly
+            use_actionset_as_actionspace: Whether to use actionset_dict as action space
+            max_steps_per_episode: Maximum steps before episode termination
+            verbose: Whether to print progress information
+            
+        Returns:
+            Dictionary with evaluation results
+        """
+        start_time = time.time()
+        
+        # Choose category if not specified
+        if category is None:
+            category = random.choice(list(self.gen.categories.keys()))
+        
+        if verbose:
+            print(f"Evaluating policy with category: {category}")
+            print(f"Using {'actionset_dict' if use_actionset_as_actionspace else 'actionspace_dict'} as action space")
+        
+        # Choose which action space to use
+        if use_actionset_as_actionspace:
+            action_space = self.actionset_dict
+        else:
+            action_space = self.actionspace_dict
+        
+        # Generate environment and agent
+        env = self.gen.generate_env(category)
+        agent = TabularQLearningAgent(
+            statespace=[self.low, self.high],
+            num_actions=self.num_actions,
+            actionspace=action_space, 
+            lr=0.0,  # No learning during evaluation
+            gamma=self.gamma,
+            epsilon=0.0,  # No exploration during evaluation
+            force_mag=self.force_mag
+        )
+        
+        # Track evaluation metrics
+        episode_rewards = []
+        episode_steps = []
+        episode_success = []
+        
+        for episode in range(episodes):
+            state = env.reset()
+            total_reward = 0
+            done = False
+            steps = 0
+            
+            while not done and steps < max_steps_per_episode:
+                # Choose action greedily (no exploration)
+                a = agent.choose_action(state)
+                action = agent.discrete_actions[a]
+                
+                # Take action in environment
+                result = env.step(action)
+                if len(result) == 4:
+                    next_state, reward, done, info = result
+                else:
+                    next_state, reward, done, truncated, info = result
+                    done = done or truncated
+                
+                state = next_state
+                total_reward += reward
+                steps += 1
+            
+            episode_rewards.append(total_reward)
+            episode_steps.append(steps)
+            episode_success.append(1 if done and steps < max_steps_per_episode else 0)
+            
+            if verbose and episode % 100 == 0:
+                print(f"Evaluation Episode {episode}: Reward = {total_reward:.2f}, Steps = {steps}")
+        
+        env.close()
+        
+        end_time = time.time()
+        runtime = end_time - start_time
+        
+        # Compile results
+        result = {
+            'category': category,
+            'runtime_seconds': runtime,
+            'total_episodes': episodes,
+            'mean_reward': np.mean(episode_rewards),
+            'std_reward': np.std(episode_rewards),
+            'mean_steps': np.mean(episode_steps),
+            'std_steps': np.std(episode_steps),
+            'success_rate': np.mean(episode_success),
+            'min_reward': np.min(episode_rewards),
+            'max_reward': np.max(episode_rewards),
+            'median_reward': np.median(episode_rewards)
+        }
+        
+        if verbose:
+            print(f"\nEvaluation completed in {runtime:.2f} seconds")
+            print(f"Mean reward: {result['mean_reward']:.2f} ± {result['std_reward']:.2f}")
+            print(f"Success rate: {result['success_rate']:.2%}")
+            print(f"Steps per episode: {result['mean_steps']:.1f} ± {result['std_steps']:.1f}")
+        
+        return result
+
+    def compare_policy_performance(self, training_episodes: int = 1000, 
+                                evaluation_episodes: int = 1000,
+                                num_comparisons: int = 5,
+                                max_eval_steps: int = 1000) -> Dict[str, Any]:
+        """
+        Compare performance between policies learned with actionspace_dict vs actionset_dict.
+        
+        Args:
+            training_episodes: Number of episodes for training each policy
+            evaluation_episodes: Number of episodes for evaluating each policy
+            num_comparisons: Number of comparison runs to average
+            max_eval_steps: Maximum steps per evaluation episode
+        """
+        comparison_results = {
+            'actionspace_training_runtimes': [],
+            'actionset_training_runtimes': [],
+            'actionspace_eval_rewards': [],
+            'actionset_eval_rewards': [],
+            'actionspace_eval_runtimes': [],
+            'actionset_eval_runtimes': [],
+            'actionspace_success_rates': [],
+            'actionset_success_rates': []
+        }
+        
+        print(f"\n{'='*60}")
+        print("POLICY PERFORMANCE COMPARISON")
+        print(f"{'='*60}")
+        
+        for comp_run in range(num_comparisons):
+            print(f"\n--- Comparison Run {comp_run + 1}/{num_comparisons} ---")
+            
+            # Save original actionset_dict to restore later
+            original_actionset_dict = self.actionset_dict.copy()
+            
+            # 1. Train with actionspace_dict
+            print("Training with actionspace_dict...")
+            actionspace_train_result = self.run_single_experiment(
+                episodes=training_episodes,
+                category=None,
+                use_actionset_as_actionspace=False,
+                verbose=False
+            )
+            
+            # Evaluate the actionspace policy
+            print("Evaluating actionspace_dict policy...")
+            actionspace_eval_result = self.evaluate_policy(
+                episodes=evaluation_episodes,
+                category=None,
+                use_actionset_as_actionspace=False,
+                max_steps_per_episode=max_eval_steps,
+                verbose=False
+            )
+            
+            # 2. Restore actionset_dict and train with actionset_dict
+            self.actionset_dict = original_actionset_dict.copy()
+            
+            print("Training with actionset_dict...")
+            actionset_train_result = self.run_single_experiment(
+                episodes=training_episodes,
+                category=None,
+                use_actionset_as_actionspace=True,
+                verbose=False
+            )
+            
+            # Evaluate the actionset policy
+            print("Evaluating actionset_dict policy...")
+            actionset_eval_result = self.evaluate_policy(
+                episodes=evaluation_episodes,
+                category=None,
+                use_actionset_as_actionspace=True,
+                max_steps_per_episode=max_eval_steps,
+                verbose=False
+            )
+            
+            # Store results
+            comparison_results['actionspace_training_runtimes'].append(actionspace_train_result['runtime_seconds'])
+            comparison_results['actionset_training_runtimes'].append(actionset_train_result['runtime_seconds'])
+            comparison_results['actionspace_eval_rewards'].append(actionspace_eval_result['mean_reward'])
+            comparison_results['actionset_eval_rewards'].append(actionset_eval_result['mean_reward'])
+            comparison_results['actionspace_eval_runtimes'].append(actionspace_eval_result['runtime_seconds'])
+            comparison_results['actionset_eval_runtimes'].append(actionset_eval_result['runtime_seconds'])
+            comparison_results['actionspace_success_rates'].append(actionspace_eval_result['success_rate'])
+            comparison_results['actionset_success_rates'].append(actionset_eval_result['success_rate'])
+            
+            print(f"ActionSpace - Train: {actionspace_train_result['runtime_seconds']:.2f}s, "
+                f"Eval Reward: {actionspace_eval_result['mean_reward']:.2f}, "
+                f"Success: {actionspace_eval_result['success_rate']:.2%}")
+            print(f"ActionSet   - Train: {actionset_train_result['runtime_seconds']:.2f}s, "
+                f"Eval Reward: {actionset_eval_result['mean_reward']:.2f}, "
+                f"Success: {actionset_eval_result['success_rate']:.2%}")
+        
+        # Calculate summary statistics
+        summary = self._calculate_comparison_summary(comparison_results)
+        
+        # Print comprehensive comparison
+        self._print_comparison_summary(summary)
+        
+        return {
+            'detailed_results': comparison_results,
+            'summary': summary
+        }

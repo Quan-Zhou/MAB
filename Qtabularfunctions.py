@@ -1,30 +1,4 @@
 import numpy as np
-from collections import defaultdict
-
-# class Discretizer:
-#     def __init__(self, bins):
-#         """
-#         bins = [b_x, b_xdot, b_theta, b_thetadot]
-#         """
-#         self.bins = np.array(bins)
-#         self.low = np.array([-4.8, -3.0, -0.418, -3.5])
-#         self.high = np.array([4.8, 3.0, 0.418, 3.5])
-#         self.width = (self.high - self.low) / self.bins
-
-#     def discretize(self, state):
-#         ratios = (state - self.low) / self.width
-#         indices = np.floor(ratios).astype(int)
-#         indices = np.clip(indices, 0, self.bins - 1)
-#         return tuple(indices)
-    
-#     def get_all_discrete_states(self):
-#         """Generator that yields all possible discrete states"""
-#         ranges = [range(bin_size) for bin_size in self.bins]
-#         from itertools import product
-#         for state_tuple in product(*ranges):
-#             yield state_tuple\
-
-# Replace your current discretizer with this:
 
 class Discretizer:
     def __init__(self, statespace):
@@ -68,7 +42,6 @@ class Discretizer:
             yield state_tuple\
 
 
-
 class TabularQLearningAgent:
     def __init__(self, statespace ,num_actions=10, actionspace=[] ,lr=0.1, gamma=0.99, epsilon=0.1, force_mag=10.0):
         self.disc = Discretizer(statespace)
@@ -79,9 +52,6 @@ class TabularQLearningAgent:
         else:
             self.actionspace=actionspace
         
-        print(f"Continuous action space discretized into {self.num_actions} actions:")
-        print(f"Discrete actions: {self.discrete_actions}")
-
         self.Q = np.zeros((*self.disc.bins, num_actions))
         self.lr = lr
         self.gamma = gamma
@@ -112,20 +82,20 @@ class TabularQLearningAgent:
         self.Q[s][action] += update_amount
         
         # Debug information (print every 1000 updates or so)
-        if hasattr(self, 'debug_counter'):
-            self.debug_counter += 1
-        else:
-            self.debug_counter = 0
+        # if hasattr(self, 'debug_counter'):
+        #     self.debug_counter += 1
+        # else:
+        #     self.debug_counter = 0
             
-        if self.debug_counter % 1000 == 0:
-            print(f"\n--- Q-update Debug ---")
-            print(f"State: {s}, Action: {action}, Next State: {ns}")
-            print(f"Current Q: {current_q:.3f}")
-            print(f"Target: {target:.3f}")
-            print(f"TD Error: {td_error:.3f}")
-            print(f"Update amount: {update_amount:.3f}")
-            print(f"New Q: {self.Q[s][action]:.3f}")
-            print(f"Max Q in next state: {np.max(self.Q[ns]):.3f}")
+        # if self.debug_counter % 1000 == 0:
+        #     print(f"\n--- Q-update Debug ---")
+        #     print(f"State: {s}, Action: {action}, Next State: {ns}")
+        #     print(f"Current Q: {current_q:.3f}")
+        #     print(f"Target: {target:.3f}")
+        #     print(f"TD Error: {td_error:.3f}")
+        #     print(f"Update amount: {update_amount:.3f}")
+        #     print(f"New Q: {self.Q[s][action]:.3f}")
+        #     print(f"Max Q in next state: {np.max(self.Q[ns]):.3f}")
         
         return td_error  # Optional: return for monitoring
 
