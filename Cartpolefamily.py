@@ -87,9 +87,9 @@ class ContinuousCartPoleEnv(CartPoleEnv):
 class CartPoleCategoryGenerator:
     def __init__(self):
         self.categories = {
-            'easy':     {'gravity': 8.0,  'masspole': 0.08, 'length': 0.4, 'variation': 0.1},
-            'medium':   {'gravity': 9.8,  'masspole': 0.1,  'length': 0.5, 'variation': 0.15},
-            'hard':     {'gravity': 11.0, 'masspole': 0.15, 'length': 0.6, 'variation': 0.05},
+            'easy':     {'gravity': 8.0,  'masspole': 0.08, 'length': 0.4, 'variation': 0.05},
+            'medium':   {'gravity': 9.8,  'masspole': 0.1,  'length': 0.5, 'variation': 0.1},
+            'hard':     {'gravity': 11.0, 'masspole': 0.15, 'length': 0.6, 'variation': 0.15},
             'very_hard':{'gravity': 12.0, 'masspole': 0.2,  'length': 0.7, 'variation': 0.08},
             'unstable': {'gravity': 10.5, 'masspole': 0.18, 'length': 0.65,'variation': 0.2},
         }

@@ -41,7 +41,6 @@ class Discretizer:
         for state_tuple in product(*ranges):
             yield state_tuple\
 
-
 class TabularQLearningAgent:
     def __init__(self, statespace ,num_actions=10, actionspace=[] ,lr=0.1, gamma=0.99, epsilon=0.1, force_mag=10.0):
         self.disc = Discretizer(statespace)

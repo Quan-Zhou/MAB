@@ -337,7 +337,7 @@ class MetaQLearningRunner:
         
         # Choose category if not specified and no env provided
         if category is None and env is None:
-            category = random.choice(list(self.gen.categories.keys())[:3])
+            category = random.choice(list(self.gen.categories.keys())[:2])
         
         if verbose:
             print(f"Starting experiment with {'provided environment' if env else f'category: {category}'}")
@@ -588,7 +588,7 @@ class MetaQLearningRunner:
             print(f"\n--- Comparison Run {comp_run + 1}/{num_comparisons} ---")
             
             # Create the SAME environment for this comparison run
-            category = random.choice(list(self.gen.categories.keys())[:3])
+            category = random.choice(list(self.gen.categories.keys())[:2])
             env = self.gen.generate_env(category)
             print(f"Using category: {category}")
             
