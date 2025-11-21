@@ -261,7 +261,9 @@ def plot_num_runs_vs_performance(tradeoff_data):
                  marker='s', label='ActionSet', capsize=5, linewidth=2, markersize=8)
     ax1.set_xlabel('K')
     ax1.set_ylabel('Average Reward')
-    ax1.set_title('Performance vs K')
+    ax1.set_title('Reward at Evaluation Phase')
+    ax1.set_xticks(num_runs)  # Set integer ticks directly
+    ax1.set_xticklabels(num_runs)  # Use original K values as labels
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
@@ -272,7 +274,9 @@ def plot_num_runs_vs_performance(tradeoff_data):
                  marker='s', label='ActionSet', capsize=5, linewidth=2, markersize=8)
     ax2.set_xlabel('K')
     ax2.set_ylabel('Average Training Runtime (seconds)')
-    ax2.set_title('Training Runtime vs K')
+    ax2.set_title('Runtime at Training Phase')
+    ax2.set_xticks(num_runs)  # Set integer ticks directly
+    ax2.set_xticklabels(num_runs)  # Use original K values as labels
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     
@@ -344,45 +348,12 @@ def collect_num_runs_tradeoff_data(runner, num_runs_list, episodes_per_run=10000
     
     return tradeoff_data
 
-def analyze_num_runs_tradeoff_stable(runner, num_runs_list=[1, 3, 5, 8, 10, 15]):
-    """Complete analysis of num_runs trade-off"""
-    print("="*60)
-    print("ANALYZING TRADE-OFF: num_runs vs Performance")
-    print("="*60)
-    
-    # Collect data
-    tradeoff_data = collect_num_runs_tradeoff_data(
-        runner, 
-        num_runs_list=num_runs_list,
-        episodes_per_run=1,
-        num_comparisons=30
-    )
-    
-    # Generate plots
-    plot_num_runs_vs_performance(tradeoff_data)
-    
-    # Print detailed summary
-    print("\n" + "="*60)
-    print("DETAILED RESULTS SUMMARY")
-    print("="*60)
-    
-    for i, num_runs in enumerate(tradeoff_data['num_runs']):
-        asp_reward = np.mean(tradeoff_data['actionspace_rewards'][i])
-        ast_reward = np.mean(tradeoff_data['actionset_rewards'][i])
-        improvement = ast_reward - asp_reward
-        
-        print(f"num_runs={num_runs:2d}: "
-              f"ActionSpace={asp_reward:6.2f}, "
-              f"ActionSet={ast_reward:6.2f}, "
-              f"Improvement={improvement:+.2f}")
-    
-    return tradeoff_data
-
 import pickle
 import os
 from datetime import datetime
 
-def analyze_num_runs_tradeoff(runner, num_runs_list=[1, 3, 5, 8, 10, 15], save_dir="results"):
+def analyze_num_runs_tradeoff(runner, num_runs_list=[1, 3, 5, 8, 10], 
+                              episodes_per_run=10000, num_comparisons=50, save_dir="results"):
     """Complete analysis of num_runs trade-off with auto-save"""
     print("="*60)
     print("ANALYZING TRADE-OFF: num_runs vs Performance")
@@ -398,8 +369,8 @@ def analyze_num_runs_tradeoff(runner, num_runs_list=[1, 3, 5, 8, 10, 15], save_d
         tradeoff_data = collect_num_runs_tradeoff_data(
             runner, 
             num_runs_list=num_runs_list,
-            episodes_per_run=1000,
-            num_comparisons=30
+            episodes_per_run=episodes_per_run,
+            num_comparisons=num_comparisons
         )
         
         # Save data immediately after collection
