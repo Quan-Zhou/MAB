@@ -78,61 +78,6 @@ def plot_statistical_summary(comparison_results):
     
     plt.show()
 
-def collect_runs_tradeoff_data(runner, max_runs=10, episodes_per_run=1000):
-    """Collect data on how performance changes with number of training runs"""
-    tradeoff_data = {
-        'num_runs': [],
-        'final_sizes': [],
-        'total_runtimes': [],
-        'average_rewards': [],
-        'runtime_stds': [],
-        'reward_stds': []
-    }
-    
-    # Store initial state to reset between tests
-    initial_actionset = runner.actionset_dict.copy()
-    
-    for num_runs in range(1, max_runs + 1):
-        print(f"Testing with {num_runs} training runs...")
-        
-        # Reset actionset_dict for each test
-        runner.actionset_dict = initial_actionset.copy()
-        
-        # Run the specified number of training runs
-        start_time = time.time()
-        results = runner.run_multiple_experiments(
-            num_runs=num_runs,
-            episodes_per_run=episodes_per_run,
-            use_actionset_as_actionspace=False,
-            update_actionset_dict=True,
-            verbose=False
-        )
-        total_runtime = time.time() - start_time
-        
-        # Evaluate the final policy using the accumulated action set
-        eval_result = runner.evaluate_policy(
-            episodes=500,
-            use_actionset_as_actionspace=True,  # Use the built action set
-            max_steps_per_episode=1000,
-            verbose=False
-        )
-        
-        # Store data
-        tradeoff_data['num_runs'].append(num_runs)
-        tradeoff_data['final_sizes'].append(len(runner.actionset_dict))
-        tradeoff_data['total_runtimes'].append(total_runtime)
-        tradeoff_data['average_rewards'].append(eval_result['mean_reward'])
-        tradeoff_data['reward_stds'].append(eval_result['std_reward'])
-        
-        # Calculate runtime std from individual runs
-        run_runtimes = [result['runtime_seconds'] for result in results]
-        tradeoff_data['runtime_stds'].append(np.std(run_runtimes))
-        
-        print(f"  Runs: {num_runs}, Size: {len(runner.actionset_dict)}, "
-              f"Reward: {eval_result['mean_reward']:.2f}, Runtime: {total_runtime:.2f}s")
-    
-    return tradeoff_data
-
 def plot_runs_vs_runtime(tradeoff_data):
     """Plot number of training runs vs total runtime"""
     plt.figure(figsize=(10, 6))
@@ -291,3 +236,273 @@ def analyze_runs_tradeoff(runner, max_runs=8, episodes_per_run=1000):
           f"(Reward/Runtime: {efficiencies[optimal_idx]:.4f})")
     
     return tradeoff_data
+
+def plot_num_runs_vs_performance(tradeoff_data):
+    """Plot how num_runs affects performance metrics"""
+    fig, (ax2, ax1) = plt.subplots(1, 2, figsize=(12, 5))
+    
+    num_runs = tradeoff_data['num_runs']
+    
+    # Calculate statistics using the simplified key names
+    asp_reward_means = [np.mean(rewards) for rewards in tradeoff_data['actionspace_rewards']]
+    ast_reward_means = [np.mean(rewards) for rewards in tradeoff_data['actionset_rewards']]
+    asp_reward_stds = [np.std(rewards) for rewards in tradeoff_data['actionspace_rewards']]
+    ast_reward_stds = [np.std(rewards) for rewards in tradeoff_data['actionset_rewards']]
+    
+    asp_time_means = [np.mean(times) for times in tradeoff_data['actionspace_runtimes']]
+    ast_time_means = [np.mean(times) for times in tradeoff_data['actionset_runtimes']]
+    asp_time_stds = [np.std(times) for times in tradeoff_data['actionspace_runtimes']]
+    ast_time_stds = [np.std(times) for times in tradeoff_data['actionset_runtimes']]
+    
+    # Plot 1: num_runs vs Reward
+    ax1.errorbar(num_runs, asp_reward_means, yerr=asp_reward_stds, 
+                 marker='o', label='ActionSpace', capsize=5, linewidth=2, markersize=8)
+    ax1.errorbar(num_runs, ast_reward_means, yerr=ast_reward_stds,
+                 marker='s', label='ActionSet', capsize=5, linewidth=2, markersize=8)
+    ax1.set_xlabel('K')
+    ax1.set_ylabel('Average Reward')
+    ax1.set_title('Performance vs K')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: num_runs vs Training Runtime (with error bars)
+    ax2.errorbar(num_runs, asp_time_means, yerr=asp_time_stds,
+                 marker='o', label='ActionSpace', capsize=5, linewidth=2, markersize=8)
+    ax2.errorbar(num_runs, ast_time_means, yerr=ast_time_stds,
+                 marker='s', label='ActionSet', capsize=5, linewidth=2, markersize=8)
+    ax2.set_xlabel('K')
+    ax2.set_ylabel('Average Training Runtime (seconds)')
+    ax2.set_title('Training Runtime vs K')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+def collect_num_runs_tradeoff_data(runner, num_runs_list, episodes_per_run=10000, num_comparisons=30):
+    """
+    Collect trade-off data for different num_runs values
+    
+    Args:
+        runner: MetaQLearningRunner instance
+        num_runs_list: List of num_runs values to test [1, 3, 5, 10, 15, 20]
+        episodes_per_run: Episodes per training run
+        num_comparisons: Number of evaluation comparisons per trial
+    """
+    tradeoff_data = {
+        'num_runs': [],
+        'actionspace_rewards': [],
+        'actionset_rewards': [],
+        'actionspace_runtimes': [],
+        'actionset_runtimes': []
+    }
+    
+    # # Store initial state
+    # initial_actionset = runner.actionset_dict.copy()
+    
+    last_num_runs = 0
+    for num_runs in num_runs_list:
+        print(f"\n{'='*50}")
+        print(f"Testing with num_runs = {num_runs}")
+        print(f"{'='*50}")
+        
+        # # Reset actionset_dict for each trial
+        # runner.actionset_dict = initial_actionset.copy()
+        
+        # Phase 1: Training with current num_runs
+        runner.run_multiple_experiments(
+            num_runs=int(num_runs-last_num_runs), 
+            episodes_per_run=episodes_per_run,
+            update_actionset_dict=True,
+            use_actionset_as_actionspace=False,
+            verbose=True
+        )
+        
+        # Remove repetitions
+        runner.remove_action_repetitions()
+        
+        # Phase 2: Compare performance
+        comparison_results = runner.compare_policy_performance(
+            training_episodes=episodes_per_run,
+            evaluation_episodes=1,
+            num_comparisons=num_comparisons
+        )
+
+        # Extract the detailed results (this is a list of 30 comparison runs)
+        detailed_results = comparison_results['detailed_results']
+        
+        # Store data for this num_runs value
+        tradeoff_data['num_runs'].append(num_runs)
+        tradeoff_data['actionspace_runtimes'].append(detailed_results['actionspace_training_runtimes'])
+        tradeoff_data['actionset_runtimes'].append(detailed_results['actionset_training_runtimes'])
+        tradeoff_data['actionspace_rewards'].append(detailed_results['actionspace_eval_rewards'])
+        tradeoff_data['actionset_rewards'].append(detailed_results['actionset_eval_rewards'])
+        
+        print(f"Completed: num_runs={num_runs}")
+
+        last_num_runs = num_runs
+    
+    return tradeoff_data
+
+def analyze_num_runs_tradeoff_stable(runner, num_runs_list=[1, 3, 5, 8, 10, 15]):
+    """Complete analysis of num_runs trade-off"""
+    print("="*60)
+    print("ANALYZING TRADE-OFF: num_runs vs Performance")
+    print("="*60)
+    
+    # Collect data
+    tradeoff_data = collect_num_runs_tradeoff_data(
+        runner, 
+        num_runs_list=num_runs_list,
+        episodes_per_run=1,
+        num_comparisons=30
+    )
+    
+    # Generate plots
+    plot_num_runs_vs_performance(tradeoff_data)
+    
+    # Print detailed summary
+    print("\n" + "="*60)
+    print("DETAILED RESULTS SUMMARY")
+    print("="*60)
+    
+    for i, num_runs in enumerate(tradeoff_data['num_runs']):
+        asp_reward = np.mean(tradeoff_data['actionspace_rewards'][i])
+        ast_reward = np.mean(tradeoff_data['actionset_rewards'][i])
+        improvement = ast_reward - asp_reward
+        
+        print(f"num_runs={num_runs:2d}: "
+              f"ActionSpace={asp_reward:6.2f}, "
+              f"ActionSet={ast_reward:6.2f}, "
+              f"Improvement={improvement:+.2f}")
+    
+    return tradeoff_data
+
+import pickle
+import os
+from datetime import datetime
+
+def analyze_num_runs_tradeoff(runner, num_runs_list=[1, 3, 5, 8, 10, 15], save_dir="results"):
+    """Complete analysis of num_runs trade-off with auto-save"""
+    print("="*60)
+    print("ANALYZING TRADE-OFF: num_runs vs Performance")
+    print("="*60)
+    
+    # Create save directory
+    os.makedirs(save_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_filename = f"num_runs_tradeoff_{timestamp}"
+    
+    try:
+        # Collect data
+        tradeoff_data = collect_num_runs_tradeoff_data(
+            runner, 
+            num_runs_list=num_runs_list,
+            episodes_per_run=1000,
+            num_comparisons=30
+        )
+        
+        # Save data immediately after collection
+        data_file = os.path.join(save_dir, f"{base_filename}_data.pkl")
+        with open(data_file, 'wb') as f:
+            pickle.dump({
+                'tradeoff_data': tradeoff_data,
+                'num_runs_list': num_runs_list,
+                'timestamp': timestamp,
+                'runner_config': {
+                    'num_actions': runner.num_actions,
+                    'lr': runner.lr,
+                    'gamma': runner.gamma,
+                    'epsilon': runner.epsilon
+                }
+            }, f)
+        print(f"✓ Data saved to: {data_file}")
+        
+        # Generate plots
+        plot_num_runs_vs_performance(tradeoff_data)
+        
+        # Save the plot
+        plot_file = os.path.join(save_dir, f"{base_filename}_plot.png")
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        print(f"✓ Plot saved to: {plot_file}")
+        
+        # Print detailed summary
+        print("\n" + "="*60)
+        print("DETAILED RESULTS SUMMARY")
+        print("="*60)
+        
+        for i, num_runs in enumerate(tradeoff_data['num_runs']):
+            asp_reward = np.mean(tradeoff_data['actionspace_rewards'][i])
+            ast_reward = np.mean(tradeoff_data['actionset_rewards'][i])
+            improvement = ast_reward - asp_reward
+            
+            print(f"num_runs={num_runs:2d}: "
+                  f"ActionSpace={asp_reward:6.2f}, "
+                  f"ActionSet={ast_reward:6.2f}, "
+                  f"Improvement={improvement:+.2f}")
+        
+        return tradeoff_data
+        
+    except Exception as e:
+        print(f"❌ Error during analysis: {e}")
+        print("Attempting to save partial data...")
+        
+        # Try to save whatever data we have
+        if 'tradeoff_data' in locals():
+            emergency_file = os.path.join(save_dir, f"{base_filename}_EMERGENCY_SAVE.pkl")
+            with open(emergency_file, 'wb') as f:
+                pickle.dump({
+                    'tradeoff_data': tradeoff_data,
+                    'error': str(e),
+                    'timestamp': timestamp
+                }, f)
+            print(f"⚠️  Emergency save created: {emergency_file}")
+        raise
+
+def load_tradeoff_data(filename):
+    """Load previously saved tradeoff data"""
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+    return data['tradeoff_data']
+
+def resume_analysis(runner, previous_data_file, additional_runs=[]):
+    """Resume analysis from a previous save file"""
+    print("🔄 Resuming analysis from previous save...")
+    
+    # Load previous data
+    with open(previous_data_file, 'rb') as f:
+        saved_data = pickle.load(f)
+    
+    previous_tradeoff_data = saved_data['tradeoff_data']
+    previous_runs = previous_tradeoff_data['num_runs']
+    
+    # Find which runs we still need to do
+    remaining_runs = [r for r in additional_runs if r not in previous_runs]
+    
+    if not remaining_runs:
+        print("✓ No additional runs to process")
+        return previous_tradeoff_data
+    
+    print(f"Processing additional runs: {remaining_runs}")
+    
+    # Collect data for remaining runs
+    new_tradeoff_data = collect_num_runs_tradeoff_data(
+        runner, 
+        num_runs_list=remaining_runs,
+        episodes_per_run=1000,
+        num_comparisons=30
+    )
+    
+    # Merge with previous data
+    merged_data = {}
+    for key in previous_tradeoff_data.keys():
+        merged_data[key] = previous_tradeoff_data[key] + new_tradeoff_data[key]
+    
+    # Sort by num_runs to keep order
+    sorted_indices = sorted(range(len(merged_data['num_runs'])), 
+                           key=lambda i: merged_data['num_runs'][i])
+    
+    for key in merged_data.keys():
+        merged_data[key] = [merged_data[key][i] for i in sorted_indices]
+    
+    return merged_data
